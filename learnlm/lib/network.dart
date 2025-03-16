@@ -211,10 +211,22 @@ class ChatApiService {
   static Future<List<ChatSummary>> getChats(String userSecret) async {
     final response = await http.get(
       Uri.parse('$baseUrl/api/chats?user_secret=$userSecret'),
+      headers: {
+        'Accept': 'application/json; charset=utf-8',
+        'Content-Type': 'application/json; charset=utf-8'
+      }
     );
     
     if (response.statusCode == 200) {
-      List<dynamic> data = jsonDecode(response.body);
+      // Add debug info for encoding
+      print("\n=== CHAT LIST RESPONSE ENCODING INFO ===");
+      print("Response content-type: ${response.headers['content-type']}");
+      print("Response content length: ${response.contentLength}");
+      
+      // Explicitly decode the response body as UTF-8
+      final decodedBody = utf8.decode(response.bodyBytes);
+      
+      List<dynamic> data = jsonDecode(decodedBody);
       return data.map((item) => ChatSummary.fromJson(item)).toList();
     } else {
       throw Exception('Failed to load chats: ${response.statusCode}');
