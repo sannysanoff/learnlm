@@ -40,6 +40,8 @@ Used to request a streaming chat completion.
 }
 ```
 
+Note: System messages cannot be sent from the client. The server always uses its default system message.
+
 - `history`: Object containing messages array
 - `messages`: Array of previous messages in the conversation
 - `temperature`, `top_p`, `top_k`, `max_tokens`: LLM generation parameters

@@ -385,7 +385,6 @@ async def chat_completion_stream(websocket: WebSocket):
                     # without blocking the response
                     # Create a new history object with the same data
                     history_with_response = ChatHistory(
-                        system_message=request.history.system_message,
                         messages=request.history.messages.copy()
                     )
                     now_resp = datetime.utcnow().isoformat()
@@ -425,6 +424,8 @@ async def chat_completion_stream(websocket: WebSocket):
                 history = request.history
                 messages = history.messages.copy()
                 messages.append(ChatMessage(role="assistant", content=full_response))
+        
+                # Note: System messages are handled by the server and never included in client messages
                 
                 print("\n--- Full Chat Content (without system messages) ---")
                 print(f"Total messages: {len(messages) - (1 if any(msg.role == 'system' for msg in messages) else 0)}")
@@ -515,7 +516,7 @@ async def create_chat(request: SaveChatRequest):
             if not getattr(msg, "timestamp", None):
                 setattr(msg, "timestamp", datetime.fromtimestamp(now_base + (i * 0.001)).isoformat())
         
-        # Always use the default system message from GeminiClient
+        # Always use the default system message from GeminiClient - client cannot override this
         now_system = datetime.utcnow().isoformat()
         messages.insert(0, ChatMessage(
             role="system", 

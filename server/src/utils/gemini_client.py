@@ -53,7 +53,7 @@ class GeminiClient:
         
         # Log the entire chat history without truncation
         print("\n=== CHAT HISTORY (WEBSOCKET) ===")
-        print(f"System Message: {history.system_message or self.default_system_message}")
+        print(f"System Message: {self.default_system_message}")
         for i, msg in enumerate(history.messages):
             print(f"[{i}] {msg.role}:")
             print(f"--- BEGIN FULL CONTENT ---")
@@ -100,7 +100,7 @@ class GeminiClient:
             top_p=top_p,
             top_k=top_k,
             max_tokens=max_tokens,
-            system_instruction=history.system_message or self.default_system_message
+            system_instruction=self.default_system_message
         )
             
         # Call Gemini with properly formatted messages

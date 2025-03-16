@@ -8,7 +8,7 @@ class ChatMessage(BaseModel):
     timestamp: Optional[str] = None
 
 class ChatHistory(BaseModel):
-    system_message: Optional[str] = None
+    # system_message field is removed as it's not used - server always uses the default
     messages: List[ChatMessage] = []
 
 class ChatRequest(BaseModel):
