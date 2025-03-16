@@ -1,106 +1,15 @@
-import 'dart:convert';
-import 'dart:async';
 import 'dart:ui';
 import 'dart:math';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
-import 'package:http/http.dart' as http;
 import 'package:gpt_markdown/gpt_markdown.dart';
 
-// Ensure UTF-8 encoding is used for all HTTP and WebSocket communications
-const Encoding utf8Encoding = utf8;
-
-// Chat models
-class ChatSummary {
-  final int id;
-  final String title;
-  final String createdAt;
-  final String updatedAt;
-  
-  ChatSummary({
-    required this.id,
-    required this.title,
-    required this.createdAt,
-    required this.updatedAt,
-  });
-  
-  factory ChatSummary.fromJson(Map<String, dynamic> json) {
-    return ChatSummary(
-      id: json['id'],
-      title: json['title'],
-      createdAt: json['created_at'],
-      updatedAt: json['updated_at'],
-    );
-  }
-  
-  DateTime get createdAtDateTime => DateTime.parse(createdAt);
-  DateTime get updatedAtDateTime => DateTime.parse(updatedAt);
-}
-
-// Chat API service
-class ChatApiService {
-  static const String baseUrl = 'http://achtung:8035';
-  
-  // Get all chats for a user
-  static Future<List<ChatSummary>> getChats(String userSecret) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/chats?user_secret=$userSecret'),
-    );
-    
-    if (response.statusCode == 200) {
-      List<dynamic> data = jsonDecode(response.body);
-      return data.map((item) => ChatSummary.fromJson(item)).toList();
-    } else {
-      throw Exception('Failed to load chats: ${response.statusCode}');
-    }
-  }
-  
-  // Delete a chat
-  static Future<bool> deleteChat(int chatId, String userSecret) async {
-    final response = await http.delete(
-      Uri.parse('$baseUrl/api/chats/$chatId?user_secret=$userSecret'),
-    );
-    
-    return response.statusCode == 204;
-  }
-  
-  // Get detailed chat
-  static Future<Map<String, dynamic>> getChat(int chatId, String userSecret) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/chats/$chatId?user_secret=$userSecret'),
-      headers: {
-        'Accept': 'application/json; charset=utf-8',
-        'Content-Type': 'application/json; charset=utf-8'
-      }
-    );
-    
-    if (response.statusCode == 200) {
-      // Add debug info for encoding
-      print("\n=== HTTP RESPONSE ENCODING INFO ===");
-      print("Response content-type: ${response.headers['content-type']}");
-      print("Response content length: ${response.contentLength}");
-      print("First few bytes of response: ${response.bodyBytes.take(20).toList()}");
-      
-      // Explicitly decode the response body as UTF-8
-      final decodedBody = utf8.decode(response.bodyBytes);
-      
-      // Debug info for decoded text
-      if (decodedBody.length > 100) {
-        print("First 100 chars of decoded body: ${decodedBody.substring(0, 100)}");
-      }
-      
-      return jsonDecode(decodedBody);
-    } else {
-      throw Exception('Failed to load chat: ${response.statusCode}');
-    }
-  }
-}
+import 'network.dart';
+import 'storage.dart';
+import 'types.dart';
 
 void main() {
   // Add error handling for Flutter framework errors
@@ -172,8 +81,7 @@ class _ConversationsPageState extends State<ConversationsPage> {
   }
   
   Future<void> _loadUserSecret() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userSecret = prefs.getString('user_secret');
+    final userSecret = await StorageService.loadUserSecret();
     if (userSecret != null && userSecret.isNotEmpty) {
       setState(() {
         _userSecret = userSecret;
@@ -182,8 +90,7 @@ class _ConversationsPageState extends State<ConversationsPage> {
   }
   
   Future<void> _saveUserSecret(String secret) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_secret', secret);
+    await StorageService.saveUserSecret(secret);
     setState(() {
       _userSecret = secret;
     });
@@ -543,8 +450,7 @@ class _ChatPageState extends State<ChatPage> {
   final FocusNode _focusNode = FocusNode();
   final List<ChatMessage> _messages = [];
   final ScrollController _scrollController = ScrollController();
-  WebSocketChannel? _channel;
-  bool _isConnected = false;
+  WebSocketService _webSocketService = WebSocketService();
   bool _isProcessing = false;
   String _currentResponse = "";
   DateTime? _startResponseTime;
@@ -566,7 +472,7 @@ class _ChatPageState extends State<ChatPage> {
   void initState() {
     super.initState();
     _loadUserSecret();
-    _connectToServer();
+    _setupWebSocketService();
     
     // Initialize scroll controller and listener
     _scrollController.addListener(_onScroll);
@@ -576,6 +482,150 @@ class _ChatPageState extends State<ChatPage> {
       _checkForExistingChat();
       _focusNode.requestFocus();
     });
+  }
+  
+  void _setupWebSocketService() {
+    _webSocketService.onMessageReceived = _handleWebSocketMessage;
+    _webSocketService.onError = (error) {
+      print("WebSocket error in UI: $error");
+      setState(() {
+        _isProcessing = false;
+      });
+      _showConnectionError();
+    };
+    _webSocketService.onDisconnected = () {
+      setState(() {
+        _isProcessing = false;
+      });
+    };
+    _webSocketService.connect();
+  }
+  
+  void _handleWebSocketMessage(Map<String, dynamic> responseData) {
+    if (responseData["status"] == "streaming") {
+      // If this is the first chunk, record the start time
+      if (_currentResponse.isEmpty && _startResponseTime == null) {
+        _startResponseTime = DateTime.now();
+      }
+          
+      setState(() {
+        // Get the incoming chunk and log its size
+        final String chunk = responseData["chunk"];
+        print("Received chunk size: ${chunk.length} characters");
+        
+        // Debug the chunk's content if it's small
+        if (chunk.length < 50) {
+          print("Chunk content: $chunk");
+        } else {
+          print("Chunk preview: ${chunk.substring(0, 50)}...");
+        }
+        
+        // Append the chunk to the full response
+        _currentResponse += chunk;
+        // Update the last message if it's from the assistant
+        final now = DateTime.now().toUtc().toIso8601String();
+        
+        if (_messages.isNotEmpty && !_messages.last.isUser) {
+          // Preserve the original timestamp and other properties
+          final originalMsg = _messages.last;
+          _messages.last = ChatMessage(
+            text: _currentResponse,
+            isUser: false,
+            timestamp: originalMsg.timestamp ?? now,
+            generationDuration: originalMsg.generationDuration,
+          );
+        } else {
+          _messages.add(ChatMessage(
+            text: _currentResponse,
+            isUser: false,
+            timestamp: now,
+          ));
+        }
+        
+        // Keep focus on the text field during streaming
+        _focusNode.requestFocus();
+      });
+      
+      // Auto-scroll to bottom if enabled
+      if (_shouldAutoScroll && !_stickyScroll) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToBottom();
+        });
+      }
+    } else if (responseData["status"] == "complete") {
+      // Calculate the generation duration if we have a start time
+      String? generationDuration;
+      if (_startResponseTime != null) {
+        final endTime = DateTime.now();
+        final duration = endTime.difference(_startResponseTime!);
+        generationDuration = '${duration.inSeconds}.${(duration.inMilliseconds % 1000) ~/ 100}s';
+        
+        // Update the last assistant message with the duration
+        if (_messages.isNotEmpty && !_messages.last.isUser) {
+          final msg = _messages.last;
+          _messages.last = ChatMessage(
+            text: msg.text,
+            isUser: false,
+            timestamp: msg.timestamp,
+            generationDuration: generationDuration,
+          );
+        }
+      }
+      
+      setState(() {
+        _isProcessing = false;
+        _currentResponse = "";
+        _startResponseTime = null; // Reset the start time
+      });
+      
+      // Save or update the conversation on the server
+      _saveConversation();
+      
+      // Focus the text field after receiving a response
+      _focusNode.requestFocus();
+    } else if (responseData["status"] == "error") {
+      final now = DateTime.now().toUtc().toIso8601String();
+      setState(() {
+        _isProcessing = false;
+        _currentResponse = "";
+        _startResponseTime = null; // Reset the start time
+        _messages.add(ChatMessage(
+          text: "Error: ${responseData["message"]}",
+          isUser: false,
+          isError: true,
+          timestamp: now,
+        ));
+      });
+      // Also focus text field on error
+      _focusNode.requestFocus();
+    } else if (responseData["status"] == "saved") {
+      // Handle saved conversation response
+      if (responseData.containsKey("id")) {
+        setState(() {
+          _chatId = responseData["id"];
+        });
+        print("Chat saved with ID: $_chatId");
+      }
+    } else if (responseData["status"] == "title_recommendation") {
+      // Handle title recommendation
+      if (responseData.containsKey("recommended_title") && 
+          responseData.containsKey("chat_id")) {
+        final String recommendedTitle = responseData["recommended_title"];
+        final int chatId = responseData["chat_id"];
+        
+        // Only apply if it's for our current chat and title is valid
+        if (chatId == _chatId && recommendedTitle.isNotEmpty) {
+          setState(() {
+            _conversationTitle = recommendedTitle;
+          });
+          
+          // Update chat with the new title
+          _updateConversationTitle(recommendedTitle);
+          
+          print("Applied recommended title: $recommendedTitle");
+        }
+      }
+    }
   }
   
   void _onScroll() {
@@ -819,8 +869,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _loadUserSecret() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userSecret = prefs.getString('user_secret');
+    final userSecret = await StorageService.loadUserSecret();
     if (userSecret != null && userSecret.isNotEmpty) {
       setState(() {
         _userSecret = userSecret;
@@ -829,8 +878,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _saveUserSecret(String secret) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_secret', secret);
+    await StorageService.saveUserSecret(secret);
     setState(() {
       _userSecret = secret;
     });
@@ -842,257 +890,15 @@ class _ChatPageState extends State<ChatPage> {
     return 'Chat ${formatter.format(now)}';
   }
 
-  bool _isReconnecting = false;
-  int _reconnectAttempts = 0;
-  Timer? _reconnectTimer;
-
-  void _connectToServer() {
-    if (_isReconnecting) {
-      return;
-    }
-    
-    try {
-      // Hardcoded hostname and port for desktop
-      final uri = Uri.parse('ws://achtung:8035/api/chat/completion/stream');
-      _channel = WebSocketChannel.connect(uri);
-      
-      _channel!.stream.listen(
-        (data) {
-          try {
-            // Debug raw WebSocket data to check encoding
-            print("\n=== RAW WEBSOCKET DATA ===");
-            print("Data type: ${data.runtimeType}");
-            if (data is String) {
-              print("First 50 chars: ${data.length > 50 ? data.substring(0, 50) : data}");
-              print("String length: ${data.length}");
-              
-              // Check if the string has Unicode characters
-              final hasUnicode = data.codeUnits.any((unit) => unit > 127);
-              print("Has Unicode characters: $hasUnicode");
-              
-              // If Unicode detected, show the string explicitly decoded as UTF-8
-              if (hasUnicode) {
-                final bytes = utf8.encode(data);
-                final decoded = utf8.decode(bytes);
-                print("Re-decoded string (first 50 chars): ${decoded.length > 50 ? decoded.substring(0, 50) : decoded}");
-              }
-            } else if (data is List<int>) {
-              // If it's binary data, decode as UTF-8
-              final decoded = utf8.decode(data);
-              print("Decoded binary data (first 50 chars): ${decoded.length > 50 ? decoded.substring(0, 50) : decoded}");
-              data = decoded;
-            }
-            print("=========================\n");
-            
-            // Explicitly use UTF-8 decoding for WebSocket data
-            final decodedData = data is String ? data : utf8.decode(data as List<int>);
-            final responseData = jsonDecode(decodedData);
-            
-            if (responseData["status"] == "streaming") {
-              // If this is the first chunk, record the start time
-              if (_currentResponse.isEmpty && _startResponseTime == null) {
-                _startResponseTime = DateTime.now();
-              }
-                
-              setState(() {
-                // Get the incoming chunk and log its size
-                final String chunk = responseData["chunk"];
-                print("Received chunk size: ${chunk.length} characters");
-                
-                // Debug the chunk's content if it's small
-                if (chunk.length < 50) {
-                  print("Chunk content: $chunk");
-                } else {
-                  print("Chunk preview: ${chunk.substring(0, 50)}...");
-                }
-                
-                // Append the chunk to the full response
-                _currentResponse += chunk;
-                // Update the last message if it's from the assistant
-                final now = DateTime.now().toUtc().toIso8601String();
-                
-                if (_messages.isNotEmpty && !_messages.last.isUser) {
-                  // Preserve the original timestamp and other properties
-                  final originalMsg = _messages.last;
-                  _messages.last = ChatMessage(
-                    text: _currentResponse,
-                    isUser: false,
-                    timestamp: originalMsg.timestamp ?? now,
-                    generationDuration: originalMsg.generationDuration,
-                  );
-                } else {
-                  _messages.add(ChatMessage(
-                    text: _currentResponse,
-                    isUser: false,
-                    timestamp: now,
-                  ));
-                }
-                
-                // Keep focus on the text field during streaming
-                _focusNode.requestFocus();
-              });
-              
-              // Auto-scroll to bottom if enabled
-              if (_shouldAutoScroll && !_stickyScroll) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _scrollToBottom();
-                });
-              }
-            } else if (responseData["status"] == "complete") {
-              // Calculate the generation duration if we have a start time
-              String? generationDuration;
-              if (_startResponseTime != null) {
-                final endTime = DateTime.now();
-                final duration = endTime.difference(_startResponseTime!);
-                generationDuration = '${duration.inSeconds}.${(duration.inMilliseconds % 1000) ~/ 100}s';
-                
-                // Update the last assistant message with the duration
-                if (_messages.isNotEmpty && !_messages.last.isUser) {
-                  final msg = _messages.last;
-                  _messages.last = ChatMessage(
-                    text: msg.text,
-                    isUser: false,
-                    timestamp: msg.timestamp,
-                    generationDuration: generationDuration,
-                  );
-                }
-              }
-              
-              setState(() {
-                _isProcessing = false;
-                _currentResponse = "";
-                _startResponseTime = null; // Reset the start time
-              });
-              
-              // Save or update the conversation on the server
-              _saveConversation(_currentResponse);
-              
-              // Focus the text field after receiving a response
-              _focusNode.requestFocus();
-              
-              // Reset reconnect attempts on successful communication
-              _reconnectAttempts = 0;
-            } else if (responseData["status"] == "error") {
-              final now = DateTime.now().toUtc().toIso8601String();
-              setState(() {
-                _isProcessing = false;
-                _currentResponse = "";
-                _startResponseTime = null; // Reset the start time
-                _messages.add(ChatMessage(
-                  text: "Error: ${responseData["message"]}",
-                  isUser: false,
-                  isError: true,
-                  timestamp: now,
-                ));
-              });
-              // Also focus text field on error
-              _focusNode.requestFocus();
-            } else if (responseData["status"] == "saved") {
-              // Handle saved conversation response
-              if (responseData.containsKey("id")) {
-                setState(() {
-                  _chatId = responseData["id"];
-                });
-                print("Chat saved with ID: $_chatId");
-              }
-            } else if (responseData["status"] == "title_recommendation") {
-              // Handle title recommendation
-              if (responseData.containsKey("recommended_title") && 
-                  responseData.containsKey("chat_id")) {
-                final String recommendedTitle = responseData["recommended_title"];
-                final int chatId = responseData["chat_id"];
-                
-                // Only apply if it's for our current chat and title is valid
-                if (chatId == _chatId && recommendedTitle.isNotEmpty) {
-                  setState(() {
-                    _conversationTitle = recommendedTitle;
-                  });
-                  
-                  // Update chat with the new title
-                  _saveConversationWithTitle(recommendedTitle);
-                  
-                  print("Applied recommended title: $recommendedTitle");
-                }
-              }
-            }
-            
-            setState(() {
-              _isConnected = true;
-            });
-          } catch (e) {
-            print("Error processing server message: $e");
-          }
-        },
-        onError: (error) {
-          print("WebSocket error: $error");
-          setState(() {
-            _isConnected = false;
-            _isProcessing = false;
-          });
-          _showConnectionError();
-          _scheduleReconnect();
-        },
-        onDone: () {
-          print("WebSocket connection closed");
-          setState(() {
-            _isConnected = false;
-            _isProcessing = false;
-          });
-          _scheduleReconnect();
-        },
-      );
-      
-      setState(() {
-        _isConnected = true;
-      });
-    } catch (e) {
-      print("Error connecting to WebSocket: $e");
-      setState(() {
-        _isConnected = false;
-        _isProcessing = false;
-      });
-      _showConnectionError();
-      _scheduleReconnect();
-    }
-  }
-  
-  void _scheduleReconnect() {
-    if (_isReconnecting || !mounted) {
-      return;
-    }
-    
-    setState(() {
-      _isReconnecting = true;
-    });
-    
-    // Implement exponential backoff for reconnection attempts
-    final backoffSeconds = _reconnectAttempts < 5 
-        ? (1 << _reconnectAttempts) // 1, 2, 4, 8, 16 seconds
-        : 30; // Max 30 seconds
-    
-    print("Scheduling reconnect in $backoffSeconds seconds (attempt ${_reconnectAttempts + 1})");
-    
-    _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(Duration(seconds: backoffSeconds), () {
-      if (mounted) {
-        setState(() {
-          _isReconnecting = false;
-          _reconnectAttempts++;
-        });
-        _connectToServer();
-      }
-    });
-  }
   
   @override
   void dispose() {
-    _channel?.sink.close();
+    _webSocketService.close();
     _controller.dispose();
     _focusNode.dispose();
     _userSecretController.dispose();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
-    _reconnectTimer?.cancel();
     super.dispose();
   }
 
@@ -1150,84 +956,36 @@ class _ChatPageState extends State<ChatPage> {
   }
 
 
-  void _saveConversation(String assistantResponse) {
+  void _saveConversation() {
     if (_userSecret == null || _userSecret!.isEmpty) {
       print("No user secret available, cannot save conversation");
       return;
     }
 
-    // Prepare history for the request
-    final List<Map<String, dynamic>> messageHistory = [];
-    
-    for (var message in _messages) {
-      if (message.isUser) {
-        messageHistory.add({
-          "role": "user",
-          "content": message.text,
-        });
-      } else if (!message.isError) {
-        messageHistory.add({
-          "role": "assistant",
-          "content": message.text,
-        });
-      }
+    try {
+      _webSocketService.saveChat(_userSecret!, _conversationTitle, _messages, _chatId);
+    } catch (e) {
+      print("Error saving conversation: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save conversation: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
-    
-    // Create request object
-    final Map<String, dynamic> request;
-    
-    if (_chatId != null) {
-      // Update existing chat
-      request = {
-        "user_secret": _userSecret,
-        "chat_id": _chatId,
-        "title": _conversationTitle,
-        "history": {
-          "system_message": "You are a helpful AI assistant.",
-          "messages": messageHistory,
-        }
-      };
-    } else {
-      // Create new chat
-      request = {
-        "user_secret": _userSecret,
-        "title": _conversationTitle,
-        "history": {
-          "system_message": "You are a helpful AI assistant.",
-          "messages": messageHistory,
-        }
-      };
-    }
-    
-    // Send the save request
-    _channel?.sink.add(jsonEncode({
-      "command": "save_chat",
-      "data": request
-    }));
   }
   
-  void _saveConversationWithTitle(String newTitle) {
+  void _updateConversationTitle(String newTitle) {
     if (_userSecret == null || _userSecret!.isEmpty || _chatId == null) {
       print("Cannot update title: missing user secret or chat ID");
       return;
     }
     
-    // Create request object for updating just the title
-    final request = {
-      "user_secret": _userSecret,
-      "chat_id": _chatId,
-      "title": newTitle,
-      "history": {
-        "system_message": "You are a helpful AI assistant.",
-        "messages": [] // Empty messages since we're only updating the title
-      }
-    };
-    
-    // Send the save request
-    _channel?.sink.add(jsonEncode({
-      "command": "save_chat",
-      "data": request
-    }));
+    try {
+      _webSocketService.updateChatTitle(_userSecret!, _chatId!, newTitle);
+    } catch (e) {
+      print("Error updating conversation title: $e");
+    }
   }
 
   Future<void> _sendMessage() async {
@@ -1248,7 +1006,7 @@ class _ChatPageState extends State<ChatPage> {
       });
     }
     
-    if (_channel != null && _isConnected) {
+    if (_webSocketService.isConnected) {
       // Get current timestamp
       final now = DateTime.now().toUtc().toIso8601String();
       
@@ -1272,74 +1030,44 @@ class _ChatPageState extends State<ChatPage> {
         _scrollToBottom();
       });
       
-      // Prepare history for the request
-      final List<Map<String, dynamic>> messageHistory = [];
-      
-      for (var message in _messages) {
-        if (message.isUser) {
-          messageHistory.add({
-            "role": "user",
-            "content": message.text,
-          });
-        } else if (!message.isError) {
-          messageHistory.add({
-            "role": "assistant",
-            "content": message.text,
-          });
-        }
+      try {
+        // Send chat request via WebSocket service
+        _webSocketService.sendChatRequest(
+          _userSecret!, 
+          _messages, 
+          _conversationTitle, 
+          _chatId
+        );
+        
+        // Record start time for generation duration calculation
+        _startResponseTime = DateTime.now();
+        
+        // Add placeholder for assistant response with timestamp
+        setState(() {
+          _messages.add(ChatMessage(
+            text: "",
+            isUser: false,
+            timestamp: DateTime.now().toUtc().toIso8601String(),
+          ));
+        });
+        
+        _controller.clear();
+        
+        // Keep focus on text field even during processing
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _focusNode.requestFocus();
+        });
+      } catch (e) {
+        print("Error sending message: $e");
+        setState(() {
+          _isProcessing = false;
+        });
+        _showConnectionError();
       }
-      
-      // Create request object
-      final request = {
-        "history": {
-          "messages": messageHistory.map((msg) => {
-            "role": msg["role"],
-            "parts": [{"text": msg["content"]}]
-          }).toList(),
-        },
-        "temperature": 0.7,
-        "top_p": 0.95,
-        "top_k": 64,
-        "max_tokens": 4096,
-        "user_secret": _userSecret,
-        "chat_id": _chatId,
-        "title": _conversationTitle,
-      };
-      
-      // Convert request to JSON with explicit UTF-8 encoding
-      final jsonRequest = jsonEncode(request);
-      
-      // Debug outgoing request
-      print("\n=== OUTGOING WEBSOCKET REQUEST ===");
-      print("JSON length: ${jsonRequest.length}");
-      print("Has Unicode: ${jsonRequest.codeUnits.any((unit) => unit > 127)}");
-      print("============================\n");
-      
-      // Send the request with explicit UTF-8 encoding
-      _channel!.sink.add(jsonRequest);
-      
-      // Record start time for generation duration calculation
-      _startResponseTime = DateTime.now();
-      
-      // Add placeholder for assistant response with timestamp
-      setState(() {
-        _messages.add(ChatMessage(
-          text: "",
-          isUser: false,
-          timestamp: DateTime.now().toUtc().toIso8601String(),
-        ));
-      });
-      
-      _controller.clear();
-      
-      // Keep focus on text field even during processing
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _focusNode.requestFocus();
-      });
     } else {
       _showConnectionError();
       // Try to reconnect
-      _connectToServer();
+      _webSocketService.connect();
     }
   }
 
@@ -1367,12 +1095,12 @@ class _ChatPageState extends State<ChatPage> {
         ),
         actions: [
           Tooltip(
-            message: _isConnected 
+            message: _webSocketService.isConnected 
               ? "Connected" 
-              : _isReconnecting 
+              : _webSocketService.isReconnecting 
                 ? "Reconnecting..." 
                 : "Disconnected",
-            child: _isReconnecting
+            child: _webSocketService.isReconnecting
               ? SizedBox(
                   width: 24,
                   height: 24,
@@ -1382,8 +1110,8 @@ class _ChatPageState extends State<ChatPage> {
                   ),
                 )
               : Icon(
-                  _isConnected ? Icons.cloud_done : Icons.cloud_off,
-                  color: _isConnected ? Colors.green : Colors.red,
+                  _webSocketService.isConnected ? Icons.cloud_done : Icons.cloud_off,
+                  color: _webSocketService.isConnected ? Colors.green : Colors.red,
                 ),
           ),
           IconButton(
