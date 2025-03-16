@@ -101,54 +101,25 @@ class JsonUtils {
     print("=== END PROCESSING ===\n");
     
     // Sort messages by timestamp if available
-    print("\n=== SORTING MESSAGES ===");
-    final hasTimestamps = messagesData.isNotEmpty && messagesData[0].containsKey('timestamp');
-    print("Has timestamps: $hasTimestamps");
+    print("\n=== ADDING MESSAGES TO CHAT ===");
+    // Simply add all messages to loadedMessages in the order they came from the server
+    // No sorting needed as they're already sorted in the database
+    print("Adding ${userMessages.length} user messages and ${assistantMessages.length} assistant messages");
     
-    if (hasTimestamps) {
-      print("Sorting ${userMessages.length + assistantMessages.length} messages by timestamp");
-      
-      // Sort all messages by timestamp
-      final allMessages = [...userMessages, ...assistantMessages];
-      allMessages.sort((a, b) {
-        if (a.timestamp == null && b.timestamp == null) {
-          print("Both messages have null timestamps - keeping original order");
-          return 0;
-        }
-        if (a.timestamp == null) {
-          print("First message has null timestamp - placing it first");
-          return -1;
-        }
-        if (b.timestamp == null) {
-          print("Second message has null timestamp - placing it first");
-          return 1;
-        }
-        print("Comparing timestamps: ${a.timestamp} vs ${b.timestamp}");
-        return a.timestamp!.compareTo(b.timestamp!);
-      });
-      
-      print("Messages after sorting: ${allMessages.length}");
-      loadedMessages.addAll(allMessages);
-    } else {
-      print("No timestamps available - using alternating order fallback");
-      // Fallback to alternating order if timestamps aren't available
-      int userIndex = 0;
-      int assistantIndex = 0;
-      
-      while (userIndex < userMessages.length || assistantIndex < assistantMessages.length) {
-        // Add user message if available
-        if (userIndex < userMessages.length) {
-          loadedMessages.add(userMessages[userIndex]);
-          userIndex++;
-        }
-        
-        // Add assistant message if available
-        if (assistantIndex < assistantMessages.length) {
-          loadedMessages.add(assistantMessages[assistantIndex]);
-          assistantIndex++;
-        }
-      }
-    }
+    // Add all messages in the original order from the combined lists
+    final allMessages = [...userMessages, ...assistantMessages];
+    
+    // Sort by the original index to maintain server order
+    allMessages.sort((a, b) => 
+      messagesData.indexWhere((msg) => 
+        msg['content'] == a.text && msg['role'] == (a.isUser ? 'user' : 'assistant'))
+      .compareTo(
+        messagesData.indexWhere((msg) => 
+          msg['content'] == b.text && msg['role'] == (b.isUser ? 'user' : 'assistant'))
+      )
+    );
+    
+    loadedMessages.addAll(allMessages);
     
     // Debug: Log reconstructed chat messages
     print("\n=== RECONSTRUCTED CHAT (SORTED BY TIMESTAMP) ===");
