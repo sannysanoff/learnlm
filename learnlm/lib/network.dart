@@ -4,7 +4,9 @@ import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter/material.dart';
 
-// Re-export ChatMessage for backward compatibility
+// Import ChatMessage for use within this file
+import 'components/chat_message.dart';
+// Also re-export it for backward compatibility
 export 'components/chat_message.dart';
 
 // JSON processing utilities
