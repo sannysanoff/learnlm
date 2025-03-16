@@ -112,7 +112,6 @@ async def chat_completion_stream(websocket: WebSocket):
                             messages.append(ChatMessage(**msg))
                         
                         history = ChatHistory(
-                            system_message=history_data.get("system_message"),
                             messages=messages
                         )
                         
@@ -279,8 +278,7 @@ async def chat_completion_stream(websocket: WebSocket):
                             "parts": [{"text": msg.content}]
                         })
                 
-                # Always use our default system message
-                request.history.system_message = None
+                # Always use our default system message from the server
                 
                 print("\n=== PROCESSING CHAT COMPLETION REQUEST ===")
                 print(f"Temperature: {request.temperature}")

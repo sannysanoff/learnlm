@@ -25,9 +25,8 @@ class GeminiClient:
                       max_tokens: int = 8192,
                       system_instruction: str = "") -> types.GenerateContentConfig:
         """Create a generation config."""
-        # If no specific system instruction is provided, use the default
-        if not system_instruction:
-            system_instruction = self.default_system_message
+        # Always use the default system message - client cannot provide a system message
+        system_instruction = self.default_system_message
             
         return types.GenerateContentConfig(
             temperature=temperature,
