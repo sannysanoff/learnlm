@@ -509,10 +509,7 @@ class WebSocketService {
     // Create request object
     final request = {
       "history": {
-        "messages": messageHistory.map((msg) => {
-          "role": msg["role"],
-          "parts": [{"text": msg["content"]}]
-        }).toList(),
+        "messages": messageHistory,  // Keep messages in the original format with "content" field
       },
       "temperature": 0.7,
       "top_p": 0.95,
