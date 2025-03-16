@@ -14,7 +14,17 @@ async def test_chat():
     """Test the chat API by simulating a conversation."""
     uri = "ws://localhost:8035/api/chat/completion/stream"
     
-    async with websockets.connect(uri) as websocket:
+    # Set up Basic Auth for WebSocket
+    import base64
+    import os
+    
+    # Get password from env or use default
+    password = os.environ.get("LEARNLM_PASSWORD", "abcde")
+    auth_header = {
+        "Authorization": f"Basic {base64.b64encode(f'user:{password}'.encode()).decode()}"
+    }
+    
+    async with websockets.connect(uri, extra_headers=auth_header) as websocket:
         # First message: "hello"
         history = ChatHistory(
             system_message="You are a helpful AI assistant.",
