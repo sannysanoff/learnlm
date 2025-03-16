@@ -1,4 +1,5 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, Query, Path
+from fastapi.routing import APIRouter as BaseAPIRouter
 from fastapi.responses import JSONResponse
 import json
 import asyncio
@@ -11,7 +12,9 @@ from src.models.chat import (
 from src.utils.gemini_client import GeminiClient
 from src.utils.database import save_chat, update_chat, get_chat, list_chats, delete_chat
 
-router = APIRouter()
+# Create two separate routers
+router = APIRouter()  # For REST endpoints
+ws_router = APIRouter()  # For WebSocket endpoints only
 gemini_client = GeminiClient()
 
 async def _generate_and_send_title_recommendation(websocket: WebSocket, 
@@ -74,7 +77,7 @@ async def _generate_and_send_title_recommendation(websocket: WebSocket,
 
 # The REST API endpoint for chat completions has been removed since the Flutter app only uses WebSockets.
 
-@router.websocket("/api/chat/completion/stream")
+@ws_router.websocket("/api/chat/completion/stream")
 async def chat_completion_stream(websocket: WebSocket):
     """Stream chat completions via WebSocket."""
     # WebSocket doesn't require authentication

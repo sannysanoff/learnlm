@@ -6,7 +6,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from src.api.router import router
+from src.api.router import router, ws_router
 from src.utils.database import init_db
 
 # Parse command line arguments
@@ -63,9 +63,13 @@ app.add_middleware(
 # Include routers with optional authentication
 if args.password:
     print(f"Basic authentication enabled")
+    # Apply authentication only to REST endpoints
     app.include_router(router, dependencies=[Depends(get_current_username)])
 else:
     app.include_router(router)
+
+# Always include WebSocket routes WITHOUT authentication dependencies
+app.include_router(ws_router)
 
 # Mount static directory if specified
 if args.static_dir:
