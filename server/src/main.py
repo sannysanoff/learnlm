@@ -1,17 +1,39 @@
 import uvicorn
 import argparse
-from fastapi import FastAPI
+import base64
+import secrets
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from src.api.router import router
 from src.utils.database import init_db
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description="LLM Chat API Server")
 parser.add_argument("-d", "--static-dir", help="Static directory to serve as web root", default=None)
+parser.add_argument("-p", "--password", help="Password for Basic Authentication", default=None)
 args = parser.parse_args()
 
 app = FastAPI(title="LLM Chat API")
+
+# Setup Basic Auth if password is provided
+security = HTTPBasic()
+
+def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
+    if args.password is None:
+        return "anonymous"
+        
+    correct_password = args.password
+    is_correct = secrets.compare_digest(credentials.password, correct_password)
+    
+    if not is_correct:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return credentials.username
 
 # Configure CORS
 app.add_middleware(
@@ -22,8 +44,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(router)
+# Include routers with optional authentication
+if args.password:
+    print(f"Basic authentication enabled")
+    app.include_router(router, dependencies=[Depends(get_current_username)])
+else:
+    app.include_router(router)
 
 # Mount static directory if specified
 if args.static_dir:
