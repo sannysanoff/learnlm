@@ -3,6 +3,10 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+
+// Conditional import for web platform
+import 'web_utils.dart' if (dart.library.io) 'non_web_utils.dart';
 
 // Import ChatMessage for use within this file
 import 'components/chat_message.dart';
@@ -205,7 +209,7 @@ class ChatSummary {
 
 // Chat API service
 class ChatApiService {
-  static const String baseUrl = 'http://achtung:8035';
+  static String get baseUrl => PlatformUtils.getBaseUrl();
   
   // Get all chats for a user
   static Future<List<ChatSummary>> getChats(String userSecret) async {
@@ -292,8 +296,8 @@ class WebSocketService {
     }
     
     try {
-      // Hardcoded hostname and port for desktop
-      final uri = Uri.parse('ws://achtung:8035/api/chat/completion/stream');
+      // Use platform-appropriate WebSocket URL
+      final uri = Uri.parse(PlatformUtils.getWebSocketUrl());
       _channel = WebSocketChannel.connect(uri);
       
       _channel!.stream.listen(
