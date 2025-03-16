@@ -100,7 +100,7 @@ class GeminiClient:
             top_p=top_p,
             top_k=top_k,
             max_tokens=max_tokens,
-            system_instruction=system_message
+            system_instruction=history.system_message or self.default_system_message
         )
             
         # Call Gemini with properly formatted messages
