@@ -35,6 +35,22 @@ def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
         )
     return credentials.username
 
+# Function for WebSocket authentication
+def verify_ws_password(auth_header: str) -> bool:
+    """Verify WebSocket authentication header against the password."""
+    if args.password is None:
+        return True
+        
+    if not auth_header or not auth_header.startswith('Basic '):
+        return False
+        
+    try:
+        auth_decoded = base64.b64decode(auth_header[6:]).decode('utf-8')
+        username, password = auth_decoded.split(':', 1)
+        return secrets.compare_digest(password, args.password)
+    except Exception:
+        return False
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,

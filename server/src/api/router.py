@@ -77,51 +77,24 @@ async def _generate_and_send_title_recommendation(websocket: WebSocket,
 @router.websocket("/api/chat/completion/stream")
 async def chat_completion_stream(websocket: WebSocket):
     """Stream chat completions via WebSocket."""
-    # Get the password from command line args
+    # Get the password verification function
     import sys
     sys.path.insert(0, ".")
-    from src.main import args
+    from src.main import verify_ws_password
     
-    # Handle Basic Auth for WebSockets if password is set
-    if args.password:
-        # Extract authentication from headers
-        headers = dict(websocket.headers)
-        auth_header = headers.get('authorization')
-        
-        if not auth_header or not auth_header.startswith('Basic '):
-            await websocket.accept()
-            await websocket.send_text(json.dumps({
-                "status": "error",
-                "message": "Authentication required"
-            }))
-            await websocket.close(1008)  # Policy violation
-            return
-            
-        # Decode the Basic Auth header
-        import base64
-        import secrets
-        try:
-            auth_decoded = base64.b64decode(auth_header[6:]).decode('utf-8')
-            username, password = auth_decoded.split(':', 1)
-            
-            # Check if password matches
-            is_valid = secrets.compare_digest(password, args.password)
-            if not is_valid:
-                await websocket.accept()
-                await websocket.send_text(json.dumps({
-                    "status": "error",
-                    "message": "Invalid authentication credentials"
-                }))
-                await websocket.close(1008)  # Policy violation
-                return
-        except Exception as e:
-            await websocket.accept()
-            await websocket.send_text(json.dumps({
-                "status": "error",
-                "message": f"Authentication error: {str(e)}"
-            }))
-            await websocket.close(1008)  # Policy violation
-            return
+    # Handle Basic Auth for WebSockets
+    headers = dict(websocket.headers)
+    auth_header = headers.get('authorization')
+    
+    # Verify the password
+    if not verify_ws_password(auth_header):
+        await websocket.accept()
+        await websocket.send_text(json.dumps({
+            "status": "error",
+            "message": "Authentication failed"
+        }))
+        await websocket.close(1008)  # Policy violation
+        return
     
     # If we get here, authentication is valid or not required
     await websocket.accept()
