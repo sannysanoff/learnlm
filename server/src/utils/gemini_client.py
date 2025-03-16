@@ -149,41 +149,40 @@ class GeminiClient:
     async def generate_chat_title(self, history: ChatHistory) -> str:
         """Generate a title recommendation for a chat based on its content."""
         
-        # Create a prompt for getting a title recommendation
-        title_prompt = """Based on the conversation above, create a short, descriptive title for this chat.
-The title should be a single line, no more than 50 characters, and should capture the main topic or purpose of the conversation.
-Return ONLY the title text with no prefixes, quotes, or additional formatting."""
-        
-        # Convert messages to Gemini format
-        gemini_messages = []
-        
-        # Add conversation messages in proper format
+        # Simplify the approach by concatenating all conversation into one text
+        conversation_text = ""
         for msg in history.messages:
-            if msg.role == "user":
-                gemini_messages.append({
-                    "role": "user", 
-                    "parts": [msg.content]
-                })
-            elif msg.role == "assistant":
-                gemini_messages.append({
-                    "role": "model", 
-                    "parts": [msg.content]
-                })
+            role_prefix = "User: " if msg.role == "user" else "Assistant: "
+            conversation_text += f"{role_prefix}{msg.content}\n\n"
         
-        # Add final user message with the title prompt
-        gemini_messages.append({
+        # Create a prompt for getting a title recommendation
+        title_prompt = f"""
+{conversation_text}
+
+Based on the conversation above, create a short, descriptive title for this chat.
+The title should be a single line, no more than 50 characters, and should capture the main topic or purpose of the conversation.
+Return ONLY the title text with no prefixes, quotes, or additional formatting.
+"""
+        
+        # Use a simple text completion approach instead of chat format
+        gemini_messages = [{
             "role": "user",
-            "parts": [title_prompt]
-        })
+            "parts": [{"text": title_prompt}]
+        }]
         
-        # Log history for debugging
-        print(f"\n=== GENERATING TITLE WITH {len(gemini_messages)} MESSAGES ===")
+        # Log the simplified approach for debugging
+        print(f"\n=== GENERATING TITLE WITH SIMPLIFIED TEXT FORMAT ===")
+        print(f"Conversation length: {len(conversation_text)} characters")
+        with open("/tmp/debug_title_prompt.txt", "w") as f:
+            f.write(title_prompt)
+        print(f"Title generation prompt written to /tmp/debug_title_prompt.txt")
+        
         with open("/tmp/debug_title_history.json", "w") as f:
             json_history = json.dumps(gemini_messages, ensure_ascii=False, indent=2)
             f.write(json_history)
-            print(f"Title generation history written to /tmp/debug_title_history.json")
+            print(f"Title generation message format written to /tmp/debug_title_history.json")
         
-        # Generate title
+        # Generate title with simplified approach
         config = self._create_config(
             temperature=0.7,  # Lower temperature for more focused output
             top_p=0.95,
@@ -192,12 +191,19 @@ Return ONLY the title text with no prefixes, quotes, or additional formatting.""
             system_instruction="You are a helpful assistant that creates concise, relevant titles."
         )
         
-        response = await asyncio.to_thread(
-            self.client.models.generate_content,
-            model=self.model_name,
-            contents=gemini_messages,
-            config=config
-        )
+        try:
+            print("Making title generation request to Gemini API...")
+            response = await asyncio.to_thread(
+                self.client.models.generate_content,
+                model=self.model_name,
+                contents=gemini_messages,
+                config=config
+            )
+            print(f"Title generation API call successful")
+        except Exception as e:
+            print(f"Error in title generation API call: {str(e)}")
+            # Fallback to a default title if API call fails
+            return "New Conversation"
         
         # Clean and validate the title
         title = response.text.strip()
