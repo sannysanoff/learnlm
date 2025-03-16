@@ -241,6 +241,10 @@ class ChatApiService {
   static Future<bool> deleteChat(int chatId, String userSecret) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/api/chats/$chatId?user_secret=$userSecret'),
+      headers: {
+        'Accept': 'application/json; charset=utf-8',
+        'Content-Type': 'application/json; charset=utf-8'
+      }
     );
     
     return response.statusCode == 204;
