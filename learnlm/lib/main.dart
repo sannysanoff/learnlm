@@ -1292,8 +1292,10 @@ class _ChatPageState extends State<ChatPage> {
       // Create request object
       final request = {
         "history": {
-          "system_message": "You are a helpful AI assistant.",
-          "messages": messageHistory,
+          "messages": messageHistory.map((msg) => {
+            "role": msg["role"],
+            "parts": [{"text": msg["content"]}]
+          }).toList(),
         },
         "temperature": 0.7,
         "top_p": 0.95,

@@ -265,7 +265,21 @@ async def chat_completion_stream(websocket: WebSocket):
                 # Parse request using Pydantic
                 request = ChatRequest(**request_data)
                 
-                # Always use our default system message - ignore any client-provided system message
+                # Convert messages to Gemini format
+                gemini_messages = []
+                for msg in request.history.messages:
+                    if msg.role == "user":
+                        gemini_messages.append({
+                            "role": "user",
+                            "parts": [{"text": msg.content}]
+                        })
+                    elif msg.role == "assistant":
+                        gemini_messages.append({
+                            "role": "model", 
+                            "parts": [{"text": msg.content}]
+                        })
+                
+                # Always use our default system message
                 request.history.system_message = None
                 
                 print("\n=== PROCESSING CHAT COMPLETION REQUEST ===")

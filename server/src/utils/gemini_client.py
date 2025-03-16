@@ -77,28 +77,19 @@ class GeminiClient:
         if not last_user_message:
             raise ValueError("No user message found in history")
             
-        # Always use proper Gemini format for message history
-        # Construct Gemini-compatible history format
+        # Convert to Gemini's required format
         gemini_messages = []
-        system_message = history.system_message if history.system_message else self.default_system_message
-        
-        # Log that we're constructing Gemini format
-        print("\n=== CONSTRUCTING GEMINI MESSAGE FORMAT ===")
-        
-        # Add all messages in proper sequence for Gemini
         for msg in history.messages:
             if msg.role == "user":
                 gemini_messages.append({
-                    "role": "user", 
-                    "parts": [msg.content]
+                    "role": "user",
+                    "parts": [{"text": msg.content}]
                 })
-                print(f"Added user message to Gemini history (length: {len(msg.content)})")
             elif msg.role == "assistant":
                 gemini_messages.append({
-                    "role": "model", 
-                    "parts": [msg.content]
+                    "role": "model",
+                    "parts": [{"text": msg.content}]
                 })
-                print(f"Added assistant message to Gemini history (length: {len(msg.content)})")
         
         print(f"Total messages in Gemini format: {len(gemini_messages)}")
         print("===========================================\n")
