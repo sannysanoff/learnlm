@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../network.dart';
 import '../storage.dart';
@@ -227,6 +228,45 @@ class _ConversationsPageState extends State<ConversationsPage> {
                       _searchQuery = value;
                     });
                   },
+                ),
+              ),
+              // Informational card about LearnLM
+              Card(
+                margin: const EdgeInsets.all(8.0),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'About LearnLM',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'LearnLM is an educational model, NOT a general-purpose LLM. It\'s designed to help you learn.',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text('📚 TIP: Ask it to teach you about specific topics.'),
+                      const SizedBox(height: 12),
+                      InkWell(
+                        onTap: () async {
+                          const url = 'https://github.com/sannysanoff/learnlm';
+                          if (await canLaunch(url)) {
+                            await launch(url);
+                          }
+                        },
+                        child: const Text(
+                          'GitHub Repository: https://github.com/sannysanoff/learnlm',
+                          style: TextStyle(
+                            color: Colors.blue,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               Expanded(
