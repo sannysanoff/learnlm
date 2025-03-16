@@ -7,6 +7,199 @@ import 'package:flutter/material.dart';
 // Re-export ChatMessage for backward compatibility
 export 'components/chat_message.dart';
 
+// JSON processing utilities
+class JsonUtils {
+  // Debug raw response data from server
+  static void debugRawServerResponse(Map<String, dynamic> chatData) {
+    print("\n=== RAW SERVER RESPONSE ===");
+    print("Chat ID: ${chatData['id']}");
+    print("Title: ${chatData['title']}");
+    print("Created at: ${chatData['created_at']}");
+    print("Updated at: ${chatData['updated_at']}");
+    print("Messages count: ${chatData['messages'].length}");
+    
+    print("\n=== RAW MESSAGES ===");
+    final messages = chatData['messages'];
+    for (int i = 0; i < messages.length; i++) {
+      final msg = messages[i];
+      final role = msg['role'];
+      final timestamp = msg.containsKey('timestamp') ? msg['timestamp'] : "NO_TIMESTAMP";
+      // Handle content encoding properly
+      String content = msg['content'].toString();
+      
+      // Debug raw content data
+      print("[$i] Raw content type: ${msg['content'].runtimeType}");
+      
+      // Check for Unicode characters
+      final hasUnicode = content.codeUnits.any((unit) => unit > 127);
+      print("[$i] Has Unicode: $hasUnicode");
+      
+      // If it contains Unicode, ensure proper UTF-8 display
+      if (hasUnicode) {
+        try {
+          final bytes = utf8.encode(content);
+          final bytes16 = bytes.take(16).toList();
+          print("[$i] First 16 bytes: $bytes16");
+          
+          // For debugging: re-encode and decode to ensure consistency
+          final reDecoded = utf8.decode(bytes);
+          print("[$i] Re-decoded first 10 chars: ${reDecoded.length > 10 ? reDecoded.substring(0, 10) : reDecoded}");
+          content = reDecoded;
+        } catch (e) {
+          print("[$i] Encoding error: $e");
+        }
+      }
+      
+      final contentPreview = content.length > 100 
+          ? content.substring(0, 100) + "..." 
+          : content;
+          
+      // Print using special formatting to help identify encoding issues
+      print("[$i] ($role) [$timestamp]:");
+      print("   CONTENT[UTF-8]: $contentPreview");
+    }
+    print("=== END OF RAW RESPONSE ===\n");
+  }
+  
+  // Process chat messages data from server response
+  static List<ChatMessage> processChatMessages(List<dynamic> messagesData) {
+    final List<ChatMessage> loadedMessages = [];
+    
+    // We need to properly sort user and assistant messages to maintain conversation flow
+    final userMessages = <ChatMessage>[];
+    final assistantMessages = <ChatMessage>[];
+    
+    print("\n=== PROCESSING MESSAGES ===");
+    for (int i = 0; i < messagesData.length; i++) {
+      final msg = messagesData[i];
+      if (msg['role'] == 'system') {
+        print("[$i] Skipping system message");
+        continue;
+      }
+      
+      final isUserMsg = msg['role'] == 'user';
+      final timestamp = msg.containsKey('timestamp') ? msg['timestamp'] : null;
+      
+      print("[$i] Processing ${isUserMsg ? 'USER' : 'ASSISTANT'} message with timestamp: $timestamp");
+      
+      final chatMsg = ChatMessage(
+        text: msg['content'],
+        isUser: isUserMsg,
+        timestamp: timestamp,
+      );
+      
+      if (isUserMsg) {
+        userMessages.add(chatMsg);
+        print("  → Added to userMessages (${userMessages.length})");
+      } else {
+        assistantMessages.add(chatMsg);
+        print("  → Added to assistantMessages (${assistantMessages.length})");
+      }
+    }
+    print("=== END PROCESSING ===\n");
+    
+    // Sort messages by timestamp if available
+    print("\n=== SORTING MESSAGES ===");
+    final hasTimestamps = messagesData.isNotEmpty && messagesData[0].containsKey('timestamp');
+    print("Has timestamps: $hasTimestamps");
+    
+    if (hasTimestamps) {
+      print("Sorting ${userMessages.length + assistantMessages.length} messages by timestamp");
+      
+      // Sort all messages by timestamp
+      final allMessages = [...userMessages, ...assistantMessages];
+      allMessages.sort((a, b) {
+        if (a.timestamp == null && b.timestamp == null) {
+          print("Both messages have null timestamps - keeping original order");
+          return 0;
+        }
+        if (a.timestamp == null) {
+          print("First message has null timestamp - placing it first");
+          return -1;
+        }
+        if (b.timestamp == null) {
+          print("Second message has null timestamp - placing it first");
+          return 1;
+        }
+        print("Comparing timestamps: ${a.timestamp} vs ${b.timestamp}");
+        return a.timestamp!.compareTo(b.timestamp!);
+      });
+      
+      print("Messages after sorting: ${allMessages.length}");
+      loadedMessages.addAll(allMessages);
+    } else {
+      print("No timestamps available - using alternating order fallback");
+      // Fallback to alternating order if timestamps aren't available
+      int userIndex = 0;
+      int assistantIndex = 0;
+      
+      while (userIndex < userMessages.length || assistantIndex < assistantMessages.length) {
+        // Add user message if available
+        if (userIndex < userMessages.length) {
+          loadedMessages.add(userMessages[userIndex]);
+          userIndex++;
+        }
+        
+        // Add assistant message if available
+        if (assistantIndex < assistantMessages.length) {
+          loadedMessages.add(assistantMessages[assistantIndex]);
+          assistantIndex++;
+        }
+      }
+    }
+    
+    // Debug: Log reconstructed chat messages
+    print("\n=== RECONSTRUCTED CHAT (SORTED BY TIMESTAMP) ===");
+    for (int i = 0; i < loadedMessages.length; i++) {
+      final msg = loadedMessages[i];
+      final role = msg.isUser ? "USER" : "ASSISTANT";
+      final timestamp = msg.timestamp ?? "NO_TIMESTAMP";
+      final contentPreview = msg.text.length > 100 
+          ? msg.text.substring(0, 100) + "..." 
+          : msg.text;
+      print("[$i] ($role) [$timestamp]: $contentPreview");
+    }
+    print("=== END OF RECONSTRUCTED CHAT ===\n");
+    
+    return loadedMessages;
+  }
+  
+  // Debug raw WebSocket data
+  static void debugRawWebSocketData(dynamic data) {
+    // Debug raw WebSocket data to check encoding
+    print("\n=== RAW WEBSOCKET DATA ===");
+    print("Data type: ${data.runtimeType}");
+    if (data is String) {
+      print("First 50 chars: ${data.length > 50 ? data.substring(0, 50) : data}");
+      print("String length: ${data.length}");
+      
+      // Check if the string has Unicode characters
+      final hasUnicode = data.codeUnits.any((unit) => unit > 127);
+      print("Has Unicode characters: $hasUnicode");
+      
+      // If Unicode detected, show the string explicitly decoded as UTF-8
+      if (hasUnicode) {
+        final bytes = utf8.encode(data);
+        final decoded = utf8.decode(bytes);
+        print("Re-decoded string (first 50 chars): ${decoded.length > 50 ? decoded.substring(0, 50) : decoded}");
+      }
+    } else if (data is List<int>) {
+      // If it's binary data, decode as UTF-8
+      final decoded = utf8.decode(data);
+      print("Decoded binary data (first 50 chars): ${decoded.length > 50 ? decoded.substring(0, 50) : decoded}");
+    }
+    print("=========================\n");
+  }
+  
+  // Debug outgoing WebSocket request
+  static void debugOutgoingWebSocketRequest(String jsonRequest) {
+    print("\n=== OUTGOING WEBSOCKET REQUEST ===");
+    print("JSON length: ${jsonRequest.length}");
+    print("Has Unicode: ${jsonRequest.codeUnits.any((unit) => unit > 127)}");
+    print("============================\n");
+  }
+}
+
 // Ensure UTF-8 encoding is used for all HTTP and WebSocket communications
 const Encoding utf8Encoding = utf8;
 
@@ -121,30 +314,13 @@ class WebSocketService {
       _channel!.stream.listen(
         (data) {
           try {
-            // Debug raw WebSocket data to check encoding
-            print("\n=== RAW WEBSOCKET DATA ===");
-            print("Data type: ${data.runtimeType}");
-            if (data is String) {
-              print("First 50 chars: ${data.length > 50 ? data.substring(0, 50) : data}");
-              print("String length: ${data.length}");
-              
-              // Check if the string has Unicode characters
-              final hasUnicode = data.codeUnits.any((unit) => unit > 127);
-              print("Has Unicode characters: $hasUnicode");
-              
-              // If Unicode detected, show the string explicitly decoded as UTF-8
-              if (hasUnicode) {
-                final bytes = utf8.encode(data);
-                final decoded = utf8.decode(bytes);
-                print("Re-decoded string (first 50 chars): ${decoded.length > 50 ? decoded.substring(0, 50) : decoded}");
-              }
-            } else if (data is List<int>) {
-              // If it's binary data, decode as UTF-8
-              final decoded = utf8.decode(data);
-              print("Decoded binary data (first 50 chars): ${decoded.length > 50 ? decoded.substring(0, 50) : decoded}");
-              data = decoded;
+            // Debug raw WebSocket data
+            JsonUtils.debugRawWebSocketData(data);
+            
+            // Convert binary data to string if needed
+            if (data is List<int>) {
+              data = utf8.decode(data);
             }
-            print("=========================\n");
             
             // Explicitly use UTF-8 decoding for WebSocket data
             final decodedData = data is String ? data : utf8.decode(data as List<int>);
@@ -220,10 +396,7 @@ class WebSocketService {
       final jsonRequest = jsonEncode(data);
       
       // Debug outgoing request
-      print("\n=== OUTGOING WEBSOCKET REQUEST ===");
-      print("JSON length: ${jsonRequest.length}");
-      print("Has Unicode: ${jsonRequest.codeUnits.any((unit) => unit > 127)}");
-      print("============================\n");
+      JsonUtils.debugOutgoingWebSocketRequest(jsonRequest);
       
       _channel!.sink.add(jsonRequest);
     } else {

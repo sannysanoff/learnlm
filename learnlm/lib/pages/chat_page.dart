@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -265,154 +264,12 @@ class _ChatPageState extends State<ChatPage> {
     try {
       final chatData = await ChatApiService.getChat(chatId, _userSecret!);
       
-      // Debug: Print raw response from server
-      print("\n=== RAW SERVER RESPONSE ===");
-      print("Chat ID: ${chatData['id']}");
-      print("Title: ${chatData['title']}");
-      print("Created at: ${chatData['created_at']}");
-      print("Updated at: ${chatData['updated_at']}");
-      print("Messages count: ${chatData['messages'].length}");
+      // Debug raw response from server
+      JsonUtils.debugRawServerResponse(chatData);
       
-      print("\n=== RAW MESSAGES ===");
-      final messages = chatData['messages'];
-      for (int i = 0; i < messages.length; i++) {
-        final msg = messages[i];
-        final role = msg['role'];
-        final timestamp = msg.containsKey('timestamp') ? msg['timestamp'] : "NO_TIMESTAMP";
-        // Handle content encoding properly
-        String content = msg['content'].toString();
-        
-        // Debug raw content data
-        print("[$i] Raw content type: ${msg['content'].runtimeType}");
-        
-        // Check for Unicode characters
-        final hasUnicode = content.codeUnits.any((unit) => unit > 127);
-        print("[$i] Has Unicode: $hasUnicode");
-        
-        // If it contains Unicode, ensure proper UTF-8 display
-        if (hasUnicode) {
-          try {
-            final bytes = utf8.encode(content);
-            final bytes16 = bytes.take(16).toList();
-            print("[$i] First 16 bytes: $bytes16");
-            
-            // For debugging: re-encode and decode to ensure consistency
-            final reDecoded = utf8.decode(bytes);
-            print("[$i] Re-decoded first 10 chars: ${reDecoded.length > 10 ? reDecoded.substring(0, 10) : reDecoded}");
-            content = reDecoded;
-          } catch (e) {
-            print("[$i] Encoding error: $e");
-          }
-        }
-        
-        final contentPreview = content.length > 100 
-            ? content.substring(0, 100) + "..." 
-            : content;
-            
-        // Print using special formatting to help identify encoding issues
-        print("[$i] ($role) [$timestamp]:");
-        print("   CONTENT[UTF-8]: $contentPreview");
-      }
-      print("=== END OF RAW RESPONSE ===\n");
-      
+      // Process chat messages data
       final List<dynamic> messagesData = chatData['messages'];
-      final List<ChatMessage> loadedMessages = [];
-      
-      // We need to properly sort user and assistant messages to maintain conversation flow
-      final userMessages = <ChatMessage>[];
-      final assistantMessages = <ChatMessage>[];
-      
-      print("\n=== PROCESSING MESSAGES ===");
-      for (int i = 0; i < messagesData.length; i++) {
-        final msg = messagesData[i];
-        if (msg['role'] == 'system') {
-          print("[$i] Skipping system message");
-          continue;
-        }
-        
-        final isUserMsg = msg['role'] == 'user';
-        final timestamp = msg.containsKey('timestamp') ? msg['timestamp'] : null;
-        
-        print("[$i] Processing ${isUserMsg ? 'USER' : 'ASSISTANT'} message with timestamp: $timestamp");
-        
-        final chatMsg = ChatMessage(
-          text: msg['content'],
-          isUser: isUserMsg,
-          timestamp: timestamp,
-        );
-        
-        if (isUserMsg) {
-          userMessages.add(chatMsg);
-          print("  → Added to userMessages (${userMessages.length})");
-        } else {
-          assistantMessages.add(chatMsg);
-          print("  → Added to assistantMessages (${assistantMessages.length})");
-        }
-      }
-      print("=== END PROCESSING ===\n");
-      
-      // Sort messages by timestamp if available
-      print("\n=== SORTING MESSAGES ===");
-      final hasTimestamps = messagesData.isNotEmpty && messagesData[0].containsKey('timestamp');
-      print("Has timestamps: $hasTimestamps");
-      
-      if (hasTimestamps) {
-        print("Sorting ${userMessages.length + assistantMessages.length} messages by timestamp");
-        
-        // Sort all messages by timestamp
-        final allMessages = [...userMessages, ...assistantMessages];
-        allMessages.sort((a, b) {
-          if (a.timestamp == null && b.timestamp == null) {
-            print("Both messages have null timestamps - keeping original order");
-            return 0;
-          }
-          if (a.timestamp == null) {
-            print("First message has null timestamp - placing it first");
-            return -1;
-          }
-          if (b.timestamp == null) {
-            print("Second message has null timestamp - placing it first");
-            return 1;
-          }
-          print("Comparing timestamps: ${a.timestamp} vs ${b.timestamp}");
-          return a.timestamp!.compareTo(b.timestamp!);
-        });
-        
-        print("Messages after sorting: ${allMessages.length}");
-        loadedMessages.addAll(allMessages);
-      } else {
-        print("No timestamps available - using alternating order fallback");
-        // Fallback to alternating order if timestamps aren't available
-        int userIndex = 0;
-        int assistantIndex = 0;
-        
-        while (userIndex < userMessages.length || assistantIndex < assistantMessages.length) {
-          // Add user message if available
-          if (userIndex < userMessages.length) {
-            loadedMessages.add(userMessages[userIndex]);
-            userIndex++;
-          }
-          
-          // Add assistant message if available
-          if (assistantIndex < assistantMessages.length) {
-            loadedMessages.add(assistantMessages[assistantIndex]);
-            assistantIndex++;
-          }
-        }
-      }
-      
-      // Debug: Log reconstructed chat messages
-      print("\n=== RECONSTRUCTED CHAT (SORTED BY TIMESTAMP) ===");
-      for (int i = 0; i < loadedMessages.length; i++) {
-        final msg = loadedMessages[i];
-        final role = msg.isUser ? "USER" : "ASSISTANT";
-        final timestamp = msg.timestamp ?? "NO_TIMESTAMP";
-        final contentPreview = msg.text.length > 100 
-            ? msg.text.substring(0, 100) + "..." 
-            : msg.text;
-        print("[$i] ($role) [$timestamp]: $contentPreview");
-      }
-      print("=== END OF RECONSTRUCTED CHAT ===\n");
+      final List<ChatMessage> loadedMessages = JsonUtils.processChatMessages(messagesData);
       
       setState(() {
         _messages.clear();
