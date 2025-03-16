@@ -7,7 +7,6 @@ import 'package:uuid/uuid.dart';
 
 import '../network.dart';
 import '../storage.dart';
-import '../types.dart';
 import '../components/chat_message.dart';
 
 class ChatPage extends StatefulWidget {

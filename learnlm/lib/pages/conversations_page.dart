@@ -4,7 +4,6 @@ import 'package:uuid/uuid.dart';
 
 import '../network.dart';
 import '../storage.dart';
-import '../types.dart';
 
 class ConversationsPage extends StatefulWidget {
   const ConversationsPage({super.key});

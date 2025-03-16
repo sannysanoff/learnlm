@@ -3,10 +3,39 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter/material.dart';
-import 'types.dart';
+
+// Re-export ChatMessage for backward compatibility
+export 'components/chat_message.dart';
 
 // Ensure UTF-8 encoding is used for all HTTP and WebSocket communications
 const Encoding utf8Encoding = utf8;
+
+// Chat models
+class ChatSummary {
+  final int id;
+  final String title;
+  final String createdAt;
+  final String updatedAt;
+  
+  ChatSummary({
+    required this.id,
+    required this.title,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  
+  factory ChatSummary.fromJson(Map<String, dynamic> json) {
+    return ChatSummary(
+      id: json['id'],
+      title: json['title'],
+      createdAt: json['created_at'],
+      updatedAt: json['updated_at'],
+    );
+  }
+  
+  DateTime get createdAtDateTime => DateTime.parse(createdAt);
+  DateTime get updatedAtDateTime => DateTime.parse(updatedAt);
+}
 
 // Chat API service
 class ChatApiService {
