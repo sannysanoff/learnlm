@@ -77,26 +77,7 @@ async def _generate_and_send_title_recommendation(websocket: WebSocket,
 @router.websocket("/api/chat/completion/stream")
 async def chat_completion_stream(websocket: WebSocket):
     """Stream chat completions via WebSocket."""
-    # Get the password verification function
-    import sys
-    sys.path.insert(0, ".")
-    from src.main import verify_ws_password
-    
-    # Handle Basic Auth for WebSockets
-    headers = dict(websocket.headers)
-    auth_header = headers.get('authorization')
-    
-    # Verify the password
-    if not verify_ws_password(auth_header):
-        await websocket.accept()
-        await websocket.send_text(json.dumps({
-            "status": "error",
-            "message": "Authentication failed"
-        }))
-        await websocket.close(1008)  # Policy violation
-        return
-    
-    # If we get here, authentication is valid or not required
+    # WebSocket doesn't require authentication
     await websocket.accept()
     full_response = ""
     
