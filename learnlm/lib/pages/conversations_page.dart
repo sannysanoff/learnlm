@@ -248,7 +248,7 @@ class _ConversationsPageState extends State<ConversationsPage> {
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
-                      const Text('📚 TIP: Ask it to teach you about specific topics.'),
+                      const Text('📚 TIP: Ask it to teach you about specific topics. E.g: я хочу научиться интуитивно понимать дифференциальные уравнения.'),
                       const SizedBox(height: 12),
                       InkWell(
                         onTap: () async {
