@@ -86,10 +86,24 @@ async def chat_completion_stream(websocket: WebSocket):
     
     try:
         while True:
-            # Receive and parse JSON message
+            # Receive message
             data = await websocket.receive_text()
+            
+            # Log raw message first (optional, can be verbose)
+            # print(f"[{datetime.utcnow().isoformat()}] RAW WS MSG RECEIVED: {data[:200]}...") # Log first 200 chars
+            
+            # Parse JSON message
             request_data = json.loads(data, strict=False)
             
+            # Log parsed request data (excluding large history)
+            log_data = request_data.copy()
+            if "history" in log_data and "messages" in log_data["history"]:
+                log_data["history"]["messages"] = f"<{len(log_data['history']['messages'])} messages>" # Replace messages with count
+            elif "data" in log_data and "history" in log_data["data"] and "messages" in log_data["data"]["history"]:
+                 log_data["data"]["history"]["messages"] = f"<{len(log_data['data']['history']['messages'])} messages>" # Replace messages with count
+
+            print(f"[{datetime.utcnow().isoformat()}] WS MSG RECEIVED: {log_data}")
+
             # Check if it's a special command (only update_title is handled here now)
             if "command" in request_data:
                 if request_data["command"] == "update_title":
@@ -424,6 +438,12 @@ async def chat_completion_stream(websocket: WebSocket):
 @router.post("/api/chats", status_code=201)
 async def create_chat(request: SaveChatRequest):
     """Save a new chat."""
+    # Log request (excluding large history)
+    log_request_data = request.model_dump()
+    if "history" in log_request_data and "messages" in log_request_data["history"]:
+        log_request_data["history"]["messages"] = f"<{len(log_request_data['history']['messages'])} messages>"
+    print(f"[{datetime.utcnow().isoformat()}] REST API REQ (POST /api/chats): {log_request_data}")
+    
     try:
         history = request.history
         messages = history.messages.copy()
@@ -459,9 +479,13 @@ async def create_chat(request: SaveChatRequest):
 @router.get("/api/chats", response_model=List[ChatListResponse])
 async def get_chats(user_secret: str = Query(..., description="User secret key")):
     """List all chats for a user."""
+    # Log request parameters
+    print(f"[{datetime.utcnow().isoformat()}] REST API REQ (GET /api/chats): user_secret={user_secret}")
+    
     try:
-        print(f"\n=== API CALL: List All Chats ===")
-        print(f"User secret: {user_secret}")
+        # Original logging (can be kept or removed)
+        # print(f"\n=== API CALL: List All Chats ===")
+        # print(f"User secret: {user_secret}")
         print(f"Time: {datetime.utcnow().isoformat()}")
         print(f"================================\n")
         
@@ -484,10 +508,14 @@ async def get_chat_by_id(
     user_secret: str = Query(..., description="User secret key")
 ):
     """Retrieve a specific chat."""
+    # Log request parameters
+    print(f"[{datetime.utcnow().isoformat()}] REST API REQ (GET /api/chats/{chat_id}): user_secret={user_secret}")
+    
     try:
-        print(f"\n=== API CALL: Get Chat By ID ===")
-        print(f"Chat ID: {chat_id}")
-        print(f"User secret: {user_secret}")
+        # Original logging (can be kept or removed)
+        # print(f"\n=== API CALL: Get Chat By ID ===")
+        # print(f"Chat ID: {chat_id}")
+        # print(f"User secret: {user_secret}")
         print(f"Time: {datetime.utcnow().isoformat()}")
         print(f"================================\n")
         
@@ -555,6 +583,9 @@ async def delete_chat_by_id(
     user_secret: str = Query(..., description="User secret key")
 ):
     """Delete a specific chat."""
+    # Log request parameters
+    print(f"[{datetime.utcnow().isoformat()}] REST API REQ (DELETE /api/chats/{chat_id}): user_secret={user_secret}")
+    
     try:
         success = await delete_chat(chat_id, user_secret)
         if not success:
@@ -572,10 +603,14 @@ async def update_chat_title(
     title: str = Query(..., description="New chat title")
 ):
     """Update a chat title."""
+    # Log request parameters
+    print(f"[{datetime.utcnow().isoformat()}] REST API REQ (PUT /api/chats/{chat_id}/title): user_secret={user_secret}, title={title}")
+    
     try:
-        print(f"\n=== REST API TITLE UPDATE REQUEST ===")
-        print(f"Chat ID: {chat_id}")
-        print(f"New Title: {title}")
+        # Original logging (can be kept or removed)
+        # print(f"\n=== REST API TITLE UPDATE REQUEST ===")
+        # print(f"Chat ID: {chat_id}")
+        # print(f"New Title: {title}")
         print(f"Time: {datetime.utcnow().isoformat()}")
         print(f"=====================================\n")
         
