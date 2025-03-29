@@ -148,10 +148,13 @@ class _ChatPageState extends State<ChatPage> {
         _isProcessing = false;
         _currentResponse = "";
         _startResponseTime = null; // Reset the start time
+        
+        // Check if the server returned a chat ID and update state
+        if (responseData.containsKey("id") && responseData["id"] != null) {
+          _chatId = responseData["id"];
+          print("Received and set chat ID: $_chatId"); 
+        }
       });
-      
-      // Server handles saving automatically after completion.
-      // _saveConversation(); // Removed redundant call
       
       // Focus the text field after receiving a response
       _focusNode.requestFocus();
