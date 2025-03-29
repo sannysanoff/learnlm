@@ -385,26 +385,7 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-
-  void _saveConversation() {
-    if (_userSecret == null || _userSecret!.isEmpty) {
-      print("No user secret available, cannot save conversation");
-      return;
-    }
-
-    try {
-      // Call the corrected updateChatTitle method
-      _webSocketService.updateChatTitle(_userSecret!, _chatId!, newTitle);
-    } catch (e) {
-      print("Error updating conversation title: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to save conversation: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
+  // _saveConversation method removed as it's redundant. Server handles saving automatically.
   
   void _updateConversationTitle(String newTitle) {
     if (_userSecret == null || _userSecret!.isEmpty || _chatId == null) {
