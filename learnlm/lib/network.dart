@@ -71,59 +71,32 @@ class JsonUtils {
   static List<ChatMessage> processChatMessages(List<dynamic> messagesData) {
     final List<ChatMessage> loadedMessages = [];
     
-    // We need to properly sort user and assistant messages to maintain conversation flow
-    final userMessages = <ChatMessage>[];
-    final assistantMessages = <ChatMessage>[];
-    
-    print("\n=== PROCESSING MESSAGES ===");
+    print("\n=== PROCESSING MESSAGES (Server Order) ===");
     for (int i = 0; i < messagesData.length; i++) {
       final msg = messagesData[i];
+      
+      // Skip system messages
       if (msg['role'] == 'system') {
         print("[$i] Skipping system message");
         continue;
       }
       
       final isUserMsg = msg['role'] == 'user';
-      final timestamp = msg.containsKey('timestamp') ? msg['timestamp'] : null;
+      // Use timestamp directly from server data
+      final timestamp = msg['timestamp'] as String?; 
+      final content = msg['content'] as String? ?? ''; // Handle potential null content
       
       print("[$i] Processing ${isUserMsg ? 'USER' : 'ASSISTANT'} message with timestamp: $timestamp");
       
       final chatMsg = ChatMessage(
-        text: msg['content'],
+        text: content,
         isUser: isUserMsg,
         timestamp: timestamp,
       );
       
-      if (isUserMsg) {
-        userMessages.add(chatMsg);
-        print("  → Added to userMessages (${userMessages.length})");
-      } else {
-        assistantMessages.add(chatMsg);
-        print("  → Added to assistantMessages (${assistantMessages.length})");
-      }
+      loadedMessages.add(chatMsg);
     }
     print("=== END PROCESSING ===\n");
-    
-    // Sort messages by timestamp if available
-    print("\n=== ADDING MESSAGES TO CHAT ===");
-    // Simply add all messages to loadedMessages in the order they came from the server
-    // No sorting needed as they're already sorted in the database
-    print("Adding ${userMessages.length} user messages and ${assistantMessages.length} assistant messages");
-    
-    // Add all messages in the original order from the combined lists
-    final allMessages = [...userMessages, ...assistantMessages];
-    
-    // Sort by the original index to maintain server order
-    allMessages.sort((a, b) => 
-      messagesData.indexWhere((msg) => 
-        msg['content'] == a.text && msg['role'] == (a.isUser ? 'user' : 'assistant'))
-      .compareTo(
-        messagesData.indexWhere((msg) => 
-          msg['content'] == b.text && msg['role'] == (b.isUser ? 'user' : 'assistant'))
-      )
-    );
-    
-    loadedMessages.addAll(allMessages);
     
     // Debug: Log reconstructed chat messages
     print("\n=== RECONSTRUCTED CHAT (SORTED BY TIMESTAMP) ===");

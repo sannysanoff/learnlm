@@ -33,16 +33,11 @@ async def save_chat(user_secret: str, title: str, chat_content):
     print(f"Time: {now}")
     print(f"===========================\n")
     
-    # Convert messages to serializable format with timestamps
+    # Convert messages to serializable format, assuming timestamps are already present
     serialized_content = []
-    for i, msg in enumerate(chat_content):
-        # Create a timestamp for each message based on position if not provided
-        # This ensures messages have a consistent order
-        msg_timestamp = getattr(msg, 'timestamp', None)
-        if not msg_timestamp:
-            # Create synthetic timestamps with small increments to preserve order
-            msg_timestamp = datetime.fromisoformat(now).timestamp() + (i * 0.001)
-            msg_timestamp = datetime.fromtimestamp(msg_timestamp).isoformat()
+    for msg in chat_content:
+        # Ensure timestamp exists, default to 'now' only if absolutely necessary (should not happen ideally)
+        msg_timestamp = getattr(msg, 'timestamp', None) or now 
             
         serialized_content.append({
             "role": msg.role,
@@ -99,16 +94,11 @@ async def update_chat(chat_id: int, user_secret: str, title: str = None, chat_co
             print(f"Time: {now}")
             print(f"===========================\n")
             
-            # Convert messages to serializable format with timestamps
+            # Convert messages to serializable format, assuming timestamps are already present
             serialized_content = []
-            for i, msg in enumerate(chat_content):
-                # Create a timestamp for each message based on position if not provided
-                # This ensures messages have a consistent order
-                msg_timestamp = getattr(msg, 'timestamp', None)
-                if not msg_timestamp:
-                    # Create synthetic timestamps with small increments to preserve order
-                    msg_timestamp = datetime.fromisoformat(now).timestamp() + (i * 0.001)
-                    msg_timestamp = datetime.fromtimestamp(msg_timestamp).isoformat()
+            for msg in chat_content:
+                # Ensure timestamp exists, default to 'now' only if absolutely necessary
+                msg_timestamp = getattr(msg, 'timestamp', None) or now
                     
                 serialized_content.append({
                     "role": msg.role,
@@ -154,16 +144,11 @@ async def update_chat(chat_id: int, user_secret: str, title: str = None, chat_co
             print(f"Time: {now}")
             print(f"===========================\n")
             
-            # Convert messages to serializable format with timestamps
+            # Convert messages to serializable format, assuming timestamps are already present
             serialized_content = []
-            for i, msg in enumerate(chat_content):
-                # Create a timestamp for each message based on position if not provided
-                # This ensures messages have a consistent order
-                msg_timestamp = getattr(msg, 'timestamp', None)
-                if not msg_timestamp:
-                    # Create synthetic timestamps with small increments to preserve order
-                    msg_timestamp = datetime.fromisoformat(now).timestamp() + (i * 0.001)
-                    msg_timestamp = datetime.fromtimestamp(msg_timestamp).isoformat()
+            for msg in chat_content:
+                 # Ensure timestamp exists, default to 'now' only if absolutely necessary
+                msg_timestamp = getattr(msg, 'timestamp', None) or now
                     
                 serialized_content.append({
                     "role": msg.role,
