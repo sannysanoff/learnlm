@@ -13,7 +13,8 @@ class GeminiClient:
             raise ValueError("GEMINI_API_KEY environment variable is not set")
         
         self.client = genai.Client(api_key=api_key)
-        self.model_name = "learnlm-1.5-pro-experimental"
+        #self.model_name = "learnlm-1.5-pro-experimental"
+        self.model_name = "gemini-2.0-flash-thinking-exp-01-21"
         
         # Fixed system message for learning assistant
         self.default_system_message = """Ты - отличный учитель для детей и взрослых. Их язык - русский. Используй только их язык. 
