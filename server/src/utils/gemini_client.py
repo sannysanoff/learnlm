@@ -218,10 +218,16 @@ Return ONLY the title text with no prefixes, quotes, or additional formatting.
             return "New Conversation"
         
         # Clean and validate the title
-        title = response.text.strip()
-        
-        # Ensure it's a single line
-        title = title.split('\n')[0]
+        # Check if response and response.text are valid before processing
+        if response and hasattr(response, 'text') and response.text:
+            title = response.text.strip()
+            
+            # Ensure it's a single line
+            title = title.split('\n')[0]
+        else:
+            print("Received invalid or empty response for title generation. Using default.")
+            # Fallback to a default title if response is invalid or empty
+            return "New Conversation"
         
         # Truncate if too long
         if len(title) > 50:
