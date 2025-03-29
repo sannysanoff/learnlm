@@ -2,6 +2,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPExce
 from fastapi.routing import APIRouter as BaseAPIRouter
 from fastapi.responses import JSONResponse
 import json
+import copy # Import the copy module
 import asyncio
 from datetime import datetime
 from typing import List
@@ -96,10 +97,15 @@ async def chat_completion_stream(websocket: WebSocket):
             request_data = json.loads(data, strict=False)
             
             # Log parsed request data (excluding large history)
-            log_data = request_data.copy()
-            if "history" in log_data and "messages" in log_data["history"]:
-                log_data["history"]["messages"] = f"<{len(log_data['history']['messages'])} messages>" # Replace messages with count
-            elif "data" in log_data and "history" in log_data["data"] and "messages" in log_data["data"]["history"]:
+            # Use deepcopy to avoid modifying the original request_data
+            log_data = copy.deepcopy(request_data) 
+            if "history" in log_data and isinstance(log_data.get("history"), dict) and "messages" in log_data["history"]:
+                # Ensure messages is actually a list before getting len
+                if isinstance(log_data["history"].get("messages"), list):
+                    log_data["history"]["messages"] = f"<{len(log_data['history']['messages'])} messages>" 
+            elif "data" in log_data and isinstance(log_data.get("data"), dict) and "history" in log_data["data"] and isinstance(log_data["data"].get("history"), dict) and "messages" in log_data["data"]["history"]:
+                # Ensure messages is actually a list before getting len
+                if isinstance(log_data["data"]["history"].get("messages"), list):
                  log_data["data"]["history"]["messages"] = f"<{len(log_data['data']['history']['messages'])} messages>" # Replace messages with count
 
             print(f"[{datetime.utcnow().isoformat()}] WS MSG RECEIVED: {log_data}")
