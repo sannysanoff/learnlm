@@ -90,93 +90,9 @@ async def chat_completion_stream(websocket: WebSocket):
             data = await websocket.receive_text()
             request_data = json.loads(data, strict=False)
             
-            # Check if it's a special command
+            # Check if it's a special command (only update_title is handled here now)
             if "command" in request_data:
-                if request_data["command"] == "save_chat":
-                    try:
-                        command_data = request_data["data"]
-                        user_secret = command_data.get("user_secret")
-                        title = command_data.get("title")
-                        history_data = command_data.get("history")
-                        
-                        if not user_secret or not title or not history_data:
-                            await websocket.send_text(json.dumps({
-                                "status": "error",
-                                "message": "Missing required fields for saving chat"
-                            }, ensure_ascii=False))
-                            continue
-                        
-                        # Convert history_data to ChatHistory model
-                        messages = []
-                        now_base = datetime.utcnow().timestamp()
-                        for i, msg in enumerate(history_data.get("messages", [])):
-                            # Add timestamp if not present
-                            if "timestamp" not in msg:
-                                msg["timestamp"] = datetime.fromtimestamp(now_base + (i * 0.001)).isoformat()
-                            messages.append(ChatMessage(**msg))
-                        
-                        history = ChatHistory(
-                            messages=messages
-                        )
-                        
-                        chat_id = command_data.get("chat_id")
-                        
-                        if chat_id:
-                            # Update existing chat
-                            assistant_messages = [msg for msg in messages if msg.role == "assistant"]
-                            if assistant_messages:
-                                success = await update_chat(
-                                    chat_id,
-                                    user_secret,
-                                    title=title,
-                                    chat_content=messages
-                                )
-                                if success:
-                                    # Notify clients that a chat was updated
-                                    update_msg = {
-                                        "status": "saved",
-                                        "id": chat_id,
-                                        "title": title,
-                                        "updated_at": success
-                                    }
-                                    await websocket.send_text(json.dumps(update_msg, ensure_ascii=False))
-                                else:
-                                    await websocket.send_text(json.dumps({
-                                        "status": "error",
-                                        "message": "Failed to update chat"
-                                    }, ensure_ascii=False))
-                        else:
-                            # Create new chat - always use our default system message
-                            now_system = datetime.utcnow().isoformat()
-                            messages.insert(0, ChatMessage(
-                                role="system", 
-                                content=gemini_client.default_system_message,
-                                timestamp=now_system
-                            ))
-                                
-                            new_chat_id = await save_chat(
-                                user_secret,
-                                title,
-                                messages
-                            )
-                            
-                            await websocket.send_text(json.dumps({
-                                "status": "saved",
-                                "id": new_chat_id,
-                                "title": title
-                            }, ensure_ascii=False))
-                    except Exception as e:
-                        import traceback
-                        error_traceback = traceback.format_exc()
-                        print("\n\n=== SERVER EXCEPTION ===")
-                        print(error_traceback)
-                        print("========================\n\n")
-                        
-                        await websocket.send_text(json.dumps({
-                            "status": "error",
-                            "message": str(e)
-                        }))
-                elif request_data["command"] == "update_title":
+                if request_data["command"] == "update_title":
                     try:
                         command_data = request_data["data"]
                         user_secret = command_data.get("user_secret")

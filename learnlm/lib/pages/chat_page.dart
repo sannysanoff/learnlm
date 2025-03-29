@@ -150,8 +150,8 @@ class _ChatPageState extends State<ChatPage> {
         _startResponseTime = null; // Reset the start time
       });
       
-      // Save or update the conversation on the server
-      _saveConversation();
+      // Server handles saving automatically after completion.
+      // _saveConversation(); // Removed redundant call
       
       // Focus the text field after receiving a response
       _focusNode.requestFocus();
@@ -393,9 +393,10 @@ class _ChatPageState extends State<ChatPage> {
     }
 
     try {
-      _webSocketService.saveChat(_userSecret!, _conversationTitle, _messages, _chatId);
+      // Call the corrected updateChatTitle method
+      _webSocketService.updateChatTitle(_userSecret!, _chatId!, newTitle);
     } catch (e) {
-      print("Error saving conversation: $e");
+      print("Error updating conversation title: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to save conversation: $e'),

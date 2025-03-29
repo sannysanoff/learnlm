@@ -397,82 +397,29 @@ class WebSocketService {
     }
   }
   
-  void saveChat(String userSecret, String title, List<ChatMessage> messages, [int? chatId]) {
-    if (_channel == null || !isConnected) {
-      throw Exception('WebSocket is not connected');
-    }
-    
-    // Prepare history for the request
-    final List<Map<String, dynamic>> messageHistory = [];
-    
-    for (var message in messages) {
-      if (message.isUser) {
-        messageHistory.add({
-          "role": "user",
-          "content": message.text,
-        });
-      } else if (!message.isError) {
-        messageHistory.add({
-          "role": "assistant",
-          "content": message.text,
-        });
-      }
-    }
-    
-    // Create request object
-    final Map<String, dynamic> request;
-    
-    if (chatId != null) {
-      // Update existing chat
-      request = {
-        "user_secret": userSecret,
-        "chat_id": chatId,
-        "title": title,
-        "history": {
-          "system_message": "You are a helpful AI assistant.",
-          "messages": messageHistory,
-        }
-      };
-    } else {
-      // Create new chat
-      request = {
-        "user_secret": userSecret,
-        "title": title,
-        "history": {
-          "system_message": "You are a helpful AI assistant.",
-          "messages": messageHistory,
-        }
-      };
-    }
-    
-    // Send the save request
-    _channel!.sink.add(jsonEncode({
-      "command": "save_chat",
-      "data": request
-    }));
-  }
+  // saveChat method removed as it's redundant. Server handles saving automatically.
   
   void updateChatTitle(String userSecret, int chatId, String newTitle) {
     if (_channel == null || !isConnected) {
       throw Exception('WebSocket is not connected');
     }
     
-    // Create request object for updating just the title
-    final request = {
+    // Create request object for updating the title using the "update_title" command
+    final requestData = {
       "user_secret": userSecret,
       "chat_id": chatId,
       "title": newTitle,
-      "history": {
-        "system_message": "You are a helpful AI assistant.",
-        "messages": [] // Empty messages since we're only updating the title
-      }
     };
     
-    // Send the save request
-    _channel!.sink.add(jsonEncode({
-      "command": "save_chat",
-      "data": request
-    }));
+    // Send the update_title command
+    final command = {
+      "command": "update_title",
+      "data": requestData
+    };
+    
+    final jsonRequest = jsonEncode(command);
+    JsonUtils.debugOutgoingWebSocketRequest(jsonRequest); // Debug outgoing request
+    _channel!.sink.add(jsonRequest);
   }
   
   void sendChatRequest(String userSecret, List<ChatMessage> messages, String conversationTitle, [int? chatId]) {
