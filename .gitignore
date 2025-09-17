@@ -1,0 +1,5 @@
+.aider*
+*.pyc
+
+# Obfuscated API key module
+server/src/ky.py

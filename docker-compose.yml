@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8035:8035"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - DATABASE_PATH=/home/app/app/data/chats.db
+    env_file:
+      - .env
+    volumes:
+      - ./server/data:/home/app/app/data
+    command: ["-p", "${APP_PASSWORD}"]

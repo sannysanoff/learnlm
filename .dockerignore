@@ -1,0 +1,34 @@
+# .dockerignore
+
+# Git directories
+.git
+*/.git
+
+# IDE and editor files
+.idea/
+*.swp
+*.swo
+*.DS_Store
+
+# Python virtual environments
+server/.venv
+*/__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*/.pytest_cache
+
+# Flutter build directories
+learnlm/build/
+learnlm/.dart_tool/
+learnlm/.packages
+learnlm/macos
+learnlm/.flutter-plugins
+learnlm/.flutter-plugins-dependencies
+
+# Log files
+*.log
+
+# Environment files
+.env
