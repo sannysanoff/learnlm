@@ -7,13 +7,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from src.api.router import router, ws_router
-from src.utils.database import init_db
+from src.utils.database import init_db, set_database_path
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description="LLM Chat API Server")
 parser.add_argument("-d", "--static-dir", help="Static directory to serve as web root", default=None)
 parser.add_argument("-p", "--password", help="Password for Basic Authentication", default=None)
+parser.add_argument("--database", dest="database_path", help="Path to SQLite database", default=None)
 args = parser.parse_args()
+
+set_database_path(args.database_path)
 
 app = FastAPI(title="LLM Chat API")
 

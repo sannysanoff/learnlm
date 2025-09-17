@@ -4,10 +4,24 @@ import json
 from datetime import datetime
 from src.models.chat import ChatMessage
 
-DATABASE_PATH = "chats.db"
+DATABASE_PATH = os.environ.get("DATABASE_PATH", "chats.db")
+
+
+def set_database_path(path: str | None) -> None:
+    """Override database file path at runtime."""
+    global DATABASE_PATH
+    if path:
+        DATABASE_PATH = path
+
+
+def ensure_database_dir() -> None:
+    directory = os.path.dirname(os.path.abspath(DATABASE_PATH))
+    if directory:
+        os.makedirs(directory, exist_ok=True)
 
 async def init_db():
     """Initialize the database with required tables."""
+    ensure_database_dir()
     # Ensure proper handling of Unicode characters in SQLite
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.execute("PRAGMA encoding='UTF-8';")  # Ensure UTF-8 encoding

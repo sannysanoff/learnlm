@@ -5,16 +5,22 @@ from typing import List, Dict, Any, AsyncGenerator
 from google import genai
 from google.genai import types
 from src.models.chat import ChatHistory, ChatMessage
+from src.ky import ky
 
 class GeminiClient:
     def __init__(self):
+        # Try to get API key from environment first (for development)
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
-            raise ValueError("GEMINI_API_KEY environment variable is not set")
+            # Fall back to obfuscated key (for production)
+            try:
+                api_key = ky()
+            except Exception:
+                raise ValueError("GEMINI_API_KEY environment variable is not set and obfuscated key not available")
         
         self.client = genai.Client(api_key=api_key)
-        #self.model_name = "learnlm-1.5-pro-experimental"
-        self.model_name = "gemini-2.0-flash-thinking-exp-01-21"
+        self.model_name = "learnlm-2.0-flash-experimental"
+        #self.model_name = "gemini-2.0-flash-thinking-exp-01-21"
         
         # Fixed system message for learning assistant
         self.default_system_message = """Ты - отличный учитель для детей и взрослых. Их язык - русский. Используй только их язык. 
